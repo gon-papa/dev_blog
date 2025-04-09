@@ -4,10 +4,10 @@ import { ArrowRight, ChevronRight, Clock } from "lucide-react"
 import { getSortedPostsData } from "../_lib/post"
 import { formatDate } from "../_lib/util";
 
-export default function BlogSection() {
+export default async function BlogSection() {
   const posts = getSortedPostsData();
   // 最新の記事を取得
-  const latestPosts = [...posts].slice(0, 3)
+  const latestPosts = [...await posts].slice(0, 3)
 
   return (
     <section className={`container ${styles.section}`}>
@@ -39,7 +39,7 @@ export default function BlogSection() {
               <p className={styles.cardExcerpt}>{post.date}</p>
             </div>
             <div className={styles.cardFooter}>
-              <Link href={`/blog/${post.tags}`} className={styles.cardLink}>
+              <Link href={`/blog/${post.id}`} className={styles.cardLink}>
                 <span>続きを読む</span>
                 <ChevronRight className={`h-4 w-4 ${styles.cardLinkIcon}`} />
               </Link>

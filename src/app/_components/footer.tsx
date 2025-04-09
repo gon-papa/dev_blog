@@ -36,11 +36,6 @@ export default function Footer() {
                     ブログ記事一覧
                   </Link>
                 </li>
-                <li className={styles.linkItem}>
-                  <Link href="/projects" className={styles.link}>
-                    プロジェクト
-                  </Link>
-                </li>
               </ul>
             </div>
           </div>

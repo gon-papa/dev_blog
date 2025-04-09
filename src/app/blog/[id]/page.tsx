@@ -1,84 +1,126 @@
 import Link from "next/link"
-import { Calendar, Tag } from "lucide-react"
+import { notFound } from "next/navigation"
+import { format } from "date-fns"
+import { ja } from "date-fns/locale"
+import { ArrowLeft, Calendar, Tag } from "lucide-react"
+import MarkdownContent from "../../_components/markdown-content"
 import styles from "./page.module.css"
-import { formatDate } from "@/app/_lib/util"
-import { getSortedPostsData } from "@/app/_lib/post"
+import { getPostById, getSortedPostsData } from "../../_lib/post"
 
-export const metadata = {
-  title: "ブログ記事一覧 | 山田太郎のエンジニアブログ",
-  description: "Web開発、プログラミング、テクノロジーに関する記事の一覧です",
+interface BlogPostProps {
+  params: {
+    id: string
+  }
 }
 
-export default async function BlogPage() {
+// 静的生成のためのパスを生成
+export async function generateStaticParams() {
   const posts = await getSortedPostsData()
+  return posts.map((post) => ({ id: post.id }))
+}
+
+// メタデータを生成
+export async function generateMetadata({ params }: BlogPostProps) {
+  const { id } = await Promise.resolve(params);
+  const post = await getPostById(id)
+
+  if (!post) {
+    return {
+      title: "記事が見つかりません",
+    }
+  }
+
+  return {
+    title: post.title,
+    image: post.image,
+  }
+}
+
+export default async function BlogPost({ params }: BlogPostProps) {
+  // idから記事データを取得
+  const { id } = await Promise.resolve(params);
+  const post = await getPostById(id)
+
+  // 記事が見つからない場合は404ページを表示
+  if (!post) {
+    notFound()
+  }
+
+  // すべての記事を取得して関連記事を探す
+  const allPosts = await getSortedPostsData()
+
+  // 関連記事を取得（同じタグを持つ他の記事）
+  const relatedPosts = allPosts
+    .filter((p) => p.id !== post.id && p.tags?.some((tag) => post.tags?.includes(tag)))
+    .slice(0, 2)
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>ブログ記事一覧</h1>
-        <p className={styles.description}>Web開発、プログラミング、テクノロジーに関する記事を公開しています</p>
-      </div>
-
       <div className={styles.content}>
-        <div className={styles.posts}>
-          {posts.map((post) => (
-            <article key={post.id} className={styles.post}>
-              <Link href={`/blog/${post.id}`} className={styles.postLink}>
-                <div className={styles.postContent}>
-                  <h2 className={styles.postTitle}>{post.title}</h2>
-                  {/* <p className={styles.postDescription}>{post.description || post.excerpt}</p> */}
+        <Link href="/blog">
+          <button className={styles.backButton}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            記事一覧に戻る
+          </button>
+        </Link>
 
-                  <div className={styles.postMeta}>
-                    <div className={styles.postDate}>
-                      <Calendar className="h-3.5 w-3.5" />
-                      <time dateTime={post.date}>{formatDate(post.date)}</time>
-                    </div>
+        <article className={styles.article}>
+          <div className={`${styles.meta} animate-fade-up`} style={{ animationDelay: "0.1s" }}>
+            <div className={styles.date}>
+              <Calendar className="h-4 w-4" />
+              <time dateTime={post.date}>{format(new Date(post.date), "PPP", { locale: ja })}</time>
+            </div>
 
-                    {post.tags && post.tags.length > 0 && (
-                      <div className={styles.postTags}>
-                        <Tag className="h-3.5 w-3.5" />
-                        <div className={styles.tagList}>
-                          {post.tags.map((tag) => (
-                            <span key={tag} className={styles.tag}>
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            {post.tags && post.tags.length > 0 && (
+              <div className={styles.tags}>
+                <Tag className="h-4 w-4" />
+                <div className={styles.tagList}>
+                  {post.tags.map((tag) => (
+                    <Link href={`/tags/${tag}`} key={tag} className={styles.tag}>
+                      {tag}
+                    </Link>
+                  ))}
                 </div>
-              </Link>
-            </article>
-          ))}
-        </div>
+              </div>
+            )}
+          </div>
 
-        <aside className={styles.sidebar}>
-          <div className={styles.sidebarSection}>
-            <h3 className={styles.sidebarTitle}>カテゴリー</h3>
-            <div className={styles.categories}>
-              {/* タグの重複を除去して一覧を表示 */}
-              {Array.from(new Set(posts.flatMap((post) => post.tags || []))).map((tag) => (
-                <Link href={`/tags/${tag}`} key={tag} className={styles.category}>
-                  {tag}
+          {/* マークダウンから変換されたHTMLを表示するコンポーネント */}
+          <div className={`animate-fade-up`} style={{ animationDelay: "0.2s", marginTop: "30px" }}>
+            <MarkdownContent html={post.content} />
+          </div>
+
+          <div className={styles.footer}>
+            <p className={styles.footerText}>
+              この記事が役に立ったら、
+              <a
+                href={`https://twitter.com/intent/tweet?url=https://yamada-blog.vercel.app/blog/${post.id}&text=${post.title}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.footerLink}
+              >
+                Xでシェア
+              </a>
+              していただけると嬉しいです。質問やフィードバックがあればお気軽にDMください。
+            </p>
+          </div>
+        </article>
+
+        {relatedPosts.length > 0 && (
+          <div className={styles.relatedSection}>
+            <h2 className={styles.relatedTitle}>関連記事</h2>
+            <div className={styles.relatedGrid}>
+              {relatedPosts.map((related) => (
+                <Link href={`/blog/${related.id}`} key={related.id} className={styles.relatedCard}>
+                  <div className={styles.relatedCardInner}>
+                    <h3 className={styles.relatedCardTitle}>{related.title}</h3>
+                    {/* <p className={styles.relatedCardDescription}>{related.description || related.excerpt}</p> */}
+                  </div>
                 </Link>
               ))}
             </div>
           </div>
-
-          <div className={styles.sidebarSection}>
-            <h3 className={styles.sidebarTitle}>最近の投稿</h3>
-            <ul className={styles.recentPosts}>
-              {posts.slice(0, 5).map((post) => (
-                <li key={post.id} className={styles.recentPost}>
-                  <Link href={`/blog/${post.id}`} className={styles.recentPostLink}>
-                    {post.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </aside>
+        )}
       </div>
     </div>
   )

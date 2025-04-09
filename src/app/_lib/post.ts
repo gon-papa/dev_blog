@@ -3,6 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 import { PostData } from './types/post';
+import { remark } from 'remark';
+import remarkGfm from "remark-gfm";
+import rehypePrism from "rehype-prism-plus";
+import remarkRehype from "remark-rehype";
+import rehypeStringify from "rehype-stringify";
+import rehypePrettyCode from "rehype-pretty-code";
+import Image from 'next/image';
+import { randomUUID } from 'crypto';
 
 // 記事保管トップレベルディレクトリ
 const postRootDir = path.join(process.cwd(), 'posts');
@@ -36,25 +44,75 @@ function getAllMarkdownFiles(dir: string): string[] {
 
 
 // 記事取得ヘルパー
-export function getSortedPostsData(): PostData[] {
+export async function getSortedPostsData(): Promise<PostData[]> {
     // postsディレクトリ以下の全Markdownファイルのパスを取得
     const filePaths = getAllMarkdownFiles(postRootDir);
-    const allPostsData: PostData[] = filePaths.map((fullPath) => {
+    const allPostsData: PostData[] = await Promise.all(
+      filePaths.map(async (fullPath) => {
       // postsディレクトリからの相対パスを記事IDとして利用（例: "posts/hoge/post"）
       const relativePath = path.relative(postRootDir, fullPath);
       // 拡張子除去
-      const id = relativePath.replace(/\.md$/, '');
+      const repPath = relativePath.replace(/\.md$/, '');
       const fileContents = fs.readFileSync(fullPath, 'utf8');
       // マター読み込み
-      const matterResult = matter(fileContents);
+      const { data, content } = matter(fileContents);
 
-      isValidMatter(matterResult.data, fullPath)
+      isValidMatter(data, fullPath)
   
-      const data = matterResult.data as PostData;
-      data.id = id
+      const postData = data as PostData;
+      postData.id = repPath;
+      postData.content = await markdownToHtml(content);
   
-      return data
-    });
+      return postData;
+    })
+  );
   // 日付で降順にソートして返す
   return allPostsData.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+async function markdownToHtml(md: string): Promise<string> {
+  const result = await remark()
+                        .use(remarkGfm)
+                        .use(remarkRehype, { allowDangerousHtml: true })
+                        .use(rehypeStringify, { allowDangerousHtml: true })
+                        .use(rehypePrettyCode)
+                        .process(md)
+  return result.toString();
+}
+
+// スラッグから特定の記事を取得する関数
+export async function getPostById(id: string): Promise<PostData | null> {
+  try {
+    const fullPath = path.join(postRootDir, `${id}.md`)
+
+    // ファイルが存在しない場合はnullを返す
+    if (!fs.existsSync(fullPath)) {
+      return null
+    }
+
+    const fileContents = fs.readFileSync(fullPath, "utf8")
+    // postsディレクトリからの相対パスを記事IDとして利用（例: "posts/hoge/post"）
+    const relativePath = path.relative(postRootDir, fullPath);
+    // 拡張子除去
+    const repPath = relativePath.replace(/\.md$/, '');
+
+    // gray-matterを使用してフロントマターと本文を分離
+    const { data, content } = matter(fileContents)
+
+    // マークダウンをHTMLに変換
+    const contentHtml = await markdownToHtml(content)
+
+    // 記事のメタデータと内容を返す
+    return {
+      id: repPath,
+      title: data.title,
+      date: data.date,
+      tags: data.tags || [],
+      image: data.image,
+      content: contentHtml,
+    }
+  } catch (error) {
+    console.error(`Error getting post by slug: ${id}`, error)
+    return null
+  }
 }

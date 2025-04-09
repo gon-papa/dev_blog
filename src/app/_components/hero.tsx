@@ -37,10 +37,11 @@ export default function HeroSection() {
           <div className={styles.profileImage}>
             <Image
               src={selfInfo.image_path}
-              alt="ももんがのプロフィール画像"
+              alt="ぺんじにあのプロフィール画像"
               fill
               className="object-cover"
               priority
+              sizes="100vm"
             />
           </div>
         </div>
