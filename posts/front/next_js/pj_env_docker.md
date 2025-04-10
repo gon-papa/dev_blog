@@ -1,8 +1,9 @@
 ---
-id: "dev_docker"
-title: "ブログ開発step1_開発環境構築"
-date: "2023-04-02"
-tags: ["Next.js"]
+id: de026472-c3b3-4b06-94b4-8829ab2eaf24
+title: ブログ開発step1_開発環境構築
+date: '2025-04-02'
+tags:
+  - Next.js
 ---
 
 # Next.jsだけでブログ開発 環境構築編

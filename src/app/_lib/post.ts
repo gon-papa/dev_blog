@@ -1,4 +1,3 @@
-// lib/posts.ts
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
@@ -8,11 +7,29 @@ import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
 import rehypePrettyCode from "rehype-pretty-code";
+import { v4 as uuidv4 } from 'uuid';
 
 type PostMatter = Pick<PostData, "title" | "date" | "tags" | "image">;
 
 // 記事保管トップレベルディレクトリ
 const postRootDir = path.join(process.cwd(), 'posts');
+
+// idチェックで、マターにidがない場合はuuidを付与
+function ensurePostDataHasId(fullPath: string, content: string, data: any): string {
+  if (!data.id) {
+    const newId = uuidv4();
+    data.id = newId;
+
+    // 新しいfront matterとコンテンツを結合してファイル内容を更新
+    const orderedData = { id: newId, ...data };
+
+    const updatedFileContents = matter.stringify(content, orderedData);
+    fs.writeFileSync(fullPath, updatedFileContents, 'utf8');
+
+    return newId;
+  }
+  return data.id;
+}
 
 // マターの抜けチェック
 function isValidMatter(data: unknown, fullPath: string): void {
@@ -62,9 +79,10 @@ export async function getSortedPostsData(): Promise<PostData[]> {
       const { data, content } = matter(fileContents);
 
       isValidMatter(data, fullPath)
-
       const postData = data as PostData;
-      postData.id = repPath;
+
+      postData.id = ensurePostDataHasId(fullPath, content, data);// idが存在しない場合はUUID生成し、ファイルに追記
+      postData.path = repPath;
       postData.content = await markdownToHtml(content);
 
       return postData;
@@ -87,7 +105,13 @@ async function markdownToHtml(md: string): Promise<string> {
 // idから特定の記事を取得する関数
 export async function getPostById(id: string): Promise<PostData | null> {
   try {
-    const fullPath = path.join(postRootDir, `${id}.md`)
+    const blogs = await getSortedPostsData();
+    const blog = blogs.find((post) => post.id === id);
+    if (!blog) {
+      return null
+    }
+
+    const fullPath = path.join(postRootDir, `${blog.path}.md`)
 
     // ファイルが存在しない場合はnullを返す
     if (!fs.existsSync(fullPath)) {
@@ -108,15 +132,16 @@ export async function getPostById(id: string): Promise<PostData | null> {
 
     // 記事のメタデータと内容を返す
     return {
-      id: repPath,
+      id: data.id,
       title: data.title,
       date: data.date,
       tags: data.tags || [],
       image: data.image,
       content: contentHtml,
+      path: repPath
     }
   } catch (error) {
-    console.error(`Error getting post by slug: ${id}`, error)
+    console.error(`Error getting post by id: ${id}`, error)
     return null
   }
 }
