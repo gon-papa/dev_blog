@@ -8,9 +8,9 @@ import styles from "./page.module.css"
 import { getPostById, getSortedPostsData } from "../../_lib/post"
 
 interface BlogPostProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 // 静的生成のためのパスを生成

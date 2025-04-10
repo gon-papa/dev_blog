@@ -1,6 +1,5 @@
 import Image from "next/image"
-import Link from "next/link"
-import { Github, Twitter, Mail, Linkedin, Globe, Calendar, MapPin, Briefcase } from "lucide-react"
+import { Github, Calendar, MapPin, Briefcase } from "lucide-react"
 import styles from "./page.module.css"
 import { getSelfInfo, SelfInfo } from "../_lib/self_introduction"
 

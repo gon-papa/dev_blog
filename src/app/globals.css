@@ -75,6 +75,13 @@ a {
   padding: 0 1rem;
 }
 
+.not-found {
+  width: 100%;
+  text-align: center;
+  margin: 10rem;
+  padding: 0 1rem;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
