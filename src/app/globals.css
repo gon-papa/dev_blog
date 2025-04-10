@@ -77,8 +77,9 @@ a {
 
 .not-found {
   width: 100%;
+  max-width: 1200px;
   text-align: center;
-  margin: 10rem;
+  margin: 10rem auto;
   padding: 0 1rem;
 }
 
