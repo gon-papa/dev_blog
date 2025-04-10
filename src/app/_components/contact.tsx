@@ -12,7 +12,7 @@ export default function ContactSection() {
             <p className={styles.contactDescription}>ご質問など、お気軽にお問い合わせください。</p>
           </div>
           <div className={styles.contactActions}>
-            <a href="https://twitter.com/yamada-taro" target="_blank" rel="noopener noreferrer">
+            <a href="https://x.com/rom0323" target="_blank" rel="noopener noreferrer">
               <button className={`${styles.button} ${styles.buttonOutline}`}>
                 <Image src="/images/logo-black.png" alt="X icon" width={14} height={14} />              
               </button>

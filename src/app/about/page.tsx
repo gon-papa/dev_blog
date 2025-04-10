@@ -59,7 +59,7 @@ export default function AboutPage() {
 
             <div className={styles.socialLinks}>
               <a
-                href="https://github.com/yamada-taro"
+                href="https://github.com/gon-papa"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.socialLink}
@@ -68,7 +68,7 @@ export default function AboutPage() {
                 <Github />
               </a>
               <a
-                href="https://twitter.com/yamada-taro"
+                href="https://x.com/rom0323"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.socialLink}
@@ -153,7 +153,7 @@ export default function AboutPage() {
             お仕事のご依頼やご質問などがありましたら、お気軽にご連絡ください。
           </p>
           <div className={styles.contactButtons}>
-            <a href="https://twitter.com/yamada-taro" target="_blank" rel="noopener noreferrer">
+            <a href="https://x.com/rom0323" target="_blank" rel="noopener noreferrer">
               <button className={`button button-outline ${styles.contactButton}`}>
                 <Image src="/images/logo-black.png" alt="X icon" width={14} height={14} />
                 <span style={{ marginLeft: '8px' }}>DMはこちらのアカウントへ</span>     
