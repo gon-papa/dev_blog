@@ -15,10 +15,9 @@ type PostMatter = Pick<PostData, "title" | "date" | "tags" | "image">;
 const postRootDir = path.join(process.cwd(), 'posts');
 
 // idチェックで、マターにidがない場合はuuidを付与
-function ensurePostDataHasId(fullPath: string, content: string, data: any): string {
+function ensurePostDataHasId(fullPath: string, content: string, data: Partial<PostData>): string {
   if (!data.id) {
     const newId = uuidv4();
-    data.id = newId;
 
     // 新しいfront matterとコンテンツを結合してファイル内容を更新
     const orderedData = { id: newId, ...data };
@@ -81,7 +80,7 @@ export async function getSortedPostsData(): Promise<PostData[]> {
       isValidMatter(data, fullPath)
       const postData = data as PostData;
 
-      postData.id = ensurePostDataHasId(fullPath, content, data);// idが存在しない場合はUUID生成し、ファイルに追記
+      postData.id = ensurePostDataHasId(fullPath, content, postData);// idが存在しない場合はUUID生成し、ファイルに追記
       postData.path = repPath;
       postData.content = await markdownToHtml(content);
 

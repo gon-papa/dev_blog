@@ -5,5 +5,5 @@ export interface PostData {
     tags?: string[];
     image: string;
     content: string;
-    path: string;
+    path?: string;
   };

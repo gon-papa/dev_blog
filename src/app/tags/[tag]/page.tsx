@@ -6,9 +6,9 @@ import { getSortedPostsData } from "../../_lib/post"
 import { formatDate } from "../../_lib/util"
 
 interface TagPageProps {
-  params: {
+  params: Promise<{
     tag: string
-  }
+  }>
 }
 
 export async function generateStaticParams() {
@@ -21,16 +21,18 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: TagPageProps) {
-  const decodedTag = decodeURIComponent(params.tag)
+  const param = await Promise.resolve(params);
+  const decodedTag = decodeURIComponent(param.tag)
 
   return {
-    title: `${decodedTag}に関する記事 | 山田太郎のエンジニアブログ`,
+    title: `${decodedTag}に関する記事 | ぺんじにあの部屋`,
     description: `${decodedTag}に関するブログ記事の一覧です`,
   }
 }
 
 export default async function TagPage({ params }: TagPageProps) {
-  const decodedTag = decodeURIComponent(params.tag)
+  const param = await Promise.resolve(params);
+  const decodedTag = decodeURIComponent(param.tag)
   const allPosts = await getSortedPostsData()
 
   // 指定されたタグを持つ記事をフィルタリング
