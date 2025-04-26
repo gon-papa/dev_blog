@@ -109,7 +109,7 @@ docker build \
 
 dockerイメージとはコンテナを実行するために必要なファイル、バイナリ、ライブラリ、設定を含むパッケージである。
 
-![](./assets/20250426_161721_docker_image.png)
+![docker_image](/images/docker_image.png)
 
 イメージの基本概念
 
