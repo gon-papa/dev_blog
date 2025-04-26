@@ -29,7 +29,6 @@ $ docker build [OPTIONS] PATH | URL | -
 すごく簡単に言うとビルドに必要なファイルやディレクトリを指定している。
 
 ```bash
-
 docker build -t myapp .
 ```
 
@@ -59,32 +58,41 @@ docker build -f ./some/other/Dockerfile -t myapp .
 | --platform     | ビルドする**プラットフォーム（OS/Arch）**を指定   | --platform=linux/amd64     |
 
 ### 基本形
+
 ```bash
 docker build -t myapp .
 ```
+
 カレントディレクトリ（.）をビルドコンテキストに
 イメージ名は myapp
 
 ### dockerfileを指定してビルド
+
 ```bash
 docker build -f ./Dockerfile.dev -t myapp-dev .
 ```
+
 ./Dockerfile.dev を使う
 カレントディレクトリがコンテキスト
 
 ### ビルド引数（Build Args）を渡す
+
 ```bash
 docker build --build-arg API_KEY=abcdef -t app-with-api .
 ```
+
 Dockerfile内で ARG API_KEY として受け取れる
 
 ### キャッシュ無視でビルド
+
 ```bash
 docker build --no-cache -t myapp-clean .
 ```
+
 すべてクリーンな状態でビルドする
 
 ### まとめて指定
+
 ```bash
 docker build \
   -f path/to/Dockerfile \
