@@ -299,3 +299,195 @@ function throwError(): never {
   throw new Error();
 }
 ```
+
+## 型アサーション
+
+TypeScriptが推論した型を任意の方法で上書きする(型推論による不正確を強制する)
+
+具体的な型を知ることのできないケースで使用する
+
+**キャストはされないので注意すること。あくまでコンパイラに対して型を伝えるだけである。また違いすぎる型はアサーションできない(型同士がいずれかのサブタイプである場合は可能)。**
+
+- 型アサーションの書き方は2つある。
+    - as構文(こちらを使う機会が多い)
+    - アングルブラケット(JSXと見分けがつかない場合があるため、使用頻度は下がる)
+
+```tsx
+// as構文
+変数 = 値 as 型
+// アングルブラケット
+変数 = <型>値
+```
+
+**型アサーションの注意点**
+
+下記のようにプロパティの追加をしてない場合でも型アサーションはコンパイラはエラーを返さない
+
+```tsx
+interface Foo {
+    bar: number;
+    bas: string;
+}
+var foo = {} as Foo;
+// 必要なプロパティの追加を忘れてもコンパイラはエラーを起こさない
+```
+
+この場合は下記のように型アノテーションで記載する方が望ましい
+
+```tsx
+interface Foo {
+    bar: number;
+    bas: string;
+}
+var foo:Foo = {
+    // 型 '{}' には 型 'Foo' からの次のプロパティがありません: bar, basts(2739)とエラーになる
+};
+```
+
+## 型エイリアス
+
+型に名前をつけることができる。名前のついた型を型エイリアスという
+
+typeキーワードを使用する
+
+```tsx
+type StringOrNumber = string | number;
+```
+
+どんな型アノテーションにも与えることができる
+
+```tsx
+type Text = string | { text: string };
+type Coordinates = [number, number];
+type Callback = (data: string) => void;
+// プリミティブ型
+type Str = string;
+// リテラル型
+type OK = 200;
+// 配列型
+type Numbers = number[];
+// オブジェクト型
+type UserObject = { id: number; name: string };
+// ユニオン型
+type NumberOrNull = number | null;
+// 関数型
+type CallbackFunction = (value: string) => boolean;
+```
+
+複数箇所で使用したり、意味を持たせたい値を型安全を保つことに使用できる
+
+## typeof演算子
+
+TypeScriptの`typeof`は変数から型を抽出する型演算子
+
+下記は変数pointにtypeof型演算子を用いてPoint型を定義している例
+
+```tsx
+const point = { x: 135, y: 35 };
+type Point = typeof point;
+
+// type Point = {
+    // x: number;
+    // y: number;
+// }
+```
+
+バニラのtypeof演算子は値の型を調べることができるが、別物なので注意
+
+## keyof型演算子
+
+オブジェクトの型からプロパティ名を型として返す型演算子である
+
+`name`プロパティを持つ型に対して、`keyof`を使うと文字列リテラル型の`"name"`が得られる
+
+```tsx
+type Person = {
+  name: string;
+};
+type PersonKey = keyof Person;
+// type PersonKey = "name"
+
+type Book = {
+  title: string;
+  price: number;
+  rating: number;
+};
+type BookKey = keyof Book;
+// 上は次と同じ意味になる
+type BookKey = "title" | "price" | "rating";
+
+const colors = {
+  red: 'red',
+  blue: 'blue'
+}
+type Colors = keyof typeof colors;
+
+let color: Colors; // same as let color: "red" | "blue"
+color = 'red'; // okay
+color = 'blue'; // okay
+color = 'anythingElse'; // Error: Type '"anythingElse"' is not assignable to type '"red" | "blue"'
+
+type MapLike = { [K: string]: any };
+type MapKeys = keyof MapLike;
+       
+type MapKeys = string | number
+// type MapKeys = string | number
+// number型のキーアクセスのobj[0]はobj["0"]のため、stringのインデックス型は、stringではなくstring | numberが返る
+```
+
+## ジェネリクス
+
+型の安全性とコードの共通化を両立させたいときに使用する
+
+ジェネリクスは、型も引数のように扱うという発想である
+
+numberを格納することを想定したQueueクラスに文字列を与えてしまいエラーになる
+
+```tsx
+class Queue {
+  private data = [];
+  push(item) { this.data.push(item); }
+  pop() { return this.data.shift(); }
+}
+
+const queue = new Queue();
+queue.push(0);
+queue.push("1"); // numberのはずがstringをキューに格納
+
+// a developer walks into a bar
+console.log(queue.pop().toPrecision(1));
+console.log(queue.pop().toPrecision(1)); // numberのメソッドを使用しエラー
+```
+
+ここからnumber型による型制限を設ける
+
+```tsx
+class QueueNumber extends Queue {
+  push(item: number) { super.push(item); }
+  pop(): number { return this.data.shift(); }
+}
+
+const queue = new QueueNumber();
+queue.push(0);
+queue.push("1"); // 格納時点でエラー
+```
+
+ここで文字列型も格納できるQueueが必要になった場合、string型を受け入れるキュークラスを作成すると思われるが、同じようなコードが重複されることになる。
+
+これを解消するのがジェネリクスである
+
+```tsx
+class Queue<T> {
+  private data = [];
+  push(item: T) { this.data.push(item); }
+  pop(): T | undefined { return this.data.shift(); }
+}
+
+const queue = new Queue<number>();// 型も引数のように扱うことができる
+queue.push(0);
+queue.push("1"); // number型を渡しているのでエラー
+
+const queue = new Queue<string>();
+queue.push("1");
+queue.push(0); // string型を渡しているのでエラー
+```
