@@ -148,4 +148,4 @@ VPCダッシュボードからインターネットゲートウェイを選択�
 
 VPCダッシュボードからサブネットに戻り、my-subnet-app-public1-aを選択し、画面下部に出る、メニューからルートテーブルを選択する。
 
-![サブネットにigwをアタッチするメニュー](images/aws_vpc_igw_attach.png)
+![サブネットにigwをアタッチするメニュー](images/aws_vpc_subnet_attach_igw.png)
