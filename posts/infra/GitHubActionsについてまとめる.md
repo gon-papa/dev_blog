@@ -101,6 +101,10 @@ macOS
 
 [自分のランナーをホストする - GitHub Docs](https://docs.github.com/ja/actions/hosting-your-own-runners)
 
+インストール済みの代表的なソフトウェア
+Node.js, Java, Python, Go, Rubyなど(パッケージマネージャーもインストールされている)
+jq, OepnSSL, Docker, GitHubCLI, AWS CLIなどもインストールされている
+
 ## ジョブ
 
 同じランナー内で実行されるワークフロー内の一連のステップがまとまったものである
