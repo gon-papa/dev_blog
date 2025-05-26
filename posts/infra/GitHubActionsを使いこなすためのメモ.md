@@ -1,6 +1,6 @@
 ---
 id: d069f6d5-7be8-04e0-d7f8-857189480282
-title: GitHubActionsを少し上手に使ってみる
+title: GitHubActionsを少し詳しく見る
 date: '2025-05-24'
 tags:
   -  GitHubActions
