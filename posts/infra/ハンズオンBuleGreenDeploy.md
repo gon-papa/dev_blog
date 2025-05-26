@@ -358,7 +358,6 @@ Application Load Balancer: 既存のロードバランサーを選択でmy-app-a
 
 ここまででデプロイは完了である。
 
-
 ## CodeDeployを確認する
 
 ECSのサービスでBlueGreenDeployを選択した場合はDeployの責務はCodeDeployに移る。
@@ -403,7 +402,6 @@ CodeDeploy画面を開き、サイドメニューのでアプリケーション�
 
 これも1hを選択して、変更の保存をクリックする
 
-
 ## ECRの準備を行う
 
 ECRとはAWSのイメージレジストリである
@@ -413,3 +411,310 @@ ECRとはAWSのイメージレジストリである
 こうすると自身で作成したイメージをECRにpushすることでタスクの更新が走り、デプロイが自動で行われるようになる
 
 ここでは、nginxの新たなイメージを作成し、ECRにpushを行い、CodeDeployを確認しながら、BlueGreenDeployやロールバックなどを確認するための準備を行なっていく
+
+ECRを検索し、機能欄のリポジトリを選択
+
+ECRにはプライベートリポジトリとパブリックリポジトリが存在する。
+
+基本的には外部に公開する必要のないケースはプライベートリポジトリにすれば良い。
+
+プライベートリポジトリを選択して、リポジトリの作成を行う
+
+リポジトリ名: my-app-nginx
+
+を入力したら作成をクリック
+
+ECRの準備は完了
+
+## imageの作成
+
+ディレクトリを作成し、下記のファイルを設置していってください。
+
+/html/index.html
+
+```html
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>タイトル</title>
+    </head>
+    <body>
+        Hello World!
+    </body>
+</html>
+```
+
+/Dockerfile
+
+```
+FROM nginx:1.25.3
+
+COPY /html /var/www
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+```
+
+/nginx.conf
+
+```
+server {
+    listen 80;
+
+    location / {
+        root /var/www;
+        index index.html index.htm;
+    }
+}
+```
+
+
+ここまで作成できたら、Dockerfileのある階層のディレクトリ内でターミナルからコマンドを叩く
+
+```shell
+docker image build . --tag=bg-image
+```
+
+これでイメージが作成される
+
+タグがついたイメージが存在するかを確認する
+
+```shell
+docker image list
+
+# 表示結果
+REPOSITORY                                                       TAG         IMAGE ID       CREATED        SIZE
+test-image                                                       latest      54c25c1eb50a   4 days ago     274MB
+```
+
+イメージが作成されていることを確認したらローカルで一度確認をする
+
+```shell
+docker container run -p 8080:80 test-image
+```
+
+nginxが起動され、localhost:8080にアクセスをするとHello World!が表示されているはずである。
+
+
+## AWS CLIのインストール
+
+[公式インストール手順](https:/docs.aws.amazon.com/ja_jp/cli/latest/userguide/getting-started-install.htmlhttps://)
+
+基本的に公式インストール手順のAWS CLIのインストールと更新の手順から適したOSを選択してインストールすればいい
+
+インストール手順が3つあるため、GUIなのか、PCのユーザーが使用できるようにインストールなのか、今ログインしているユーザーにインストールなのかをユースケースに合わせて選べば良い
+
+選んだらインストール手順をコピペすれば問題なくインストールできるはずです。
+
+
+## IAMからECRへpushできる権限を持ったユーザーを作成
+
+IAMへ移動し、ユーザーを選択する。
+
+ユーザーの作成を選択し、
+
+
+ユーザーの詳細を指定
+
+ユーザー名: cli-user
+
+AWSマネジメントコンソールへのアクセス: 不要なのでチェックしない
+
+
+許可の設定
+
+後ほど設定
+
+ユーザーの作成をクリックでユーザーの作成
+
+ユーザーの作成が完了したら、ユーザーの詳細画面へ遷移して、許可ポリシー(インラインポリシーを作成)を追加する
+
+[公式参考](https://docs.aws.amazon.com/ja_jp/AmazonECR/latest/userguide/image-push-iam.html#:~:text=%E6%AC%A1%E3%81%AE%20IAM%20%E3%83%9D%E3%83%AA%E3%82%B7%E3%83%BC%E3%81%AF%E3%80%81%E3%81%99%E3%81%B9%E3%81%A6%E3%81%AE%E3%83%AA%E3%83%9D%E3%82%B8%E3%83%88%E3%83%AA%E3%81%AB%E3%82%A4%E3%83%A1%E3%83%BC%E3%82%B8%E3%82%92%E3%83%97%E3%83%83%E3%82%B7%E3%83%A5%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AB%E5%BF%85%E8%A6%81%E3%81%AA%E3%82%A2%E3%82%AF%E3%82%BB%E3%82%B9%E8%A8%B1%E5%8F%AF%E3%82%92%E4%BB%98%E4%B8%8E%E3%81%97%E3%81%BE%E3%81%99%E3%80%82)
+
+権限設定は下記のようにした
+
+ポリシー名： ECRPushImage
+
+```shell
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Statement1",
+			"Effect": "Allow",
+			"Action": [
+				"ecr:CompleteLayerUpload",
+				"ecr:GetAuthorizationToken",
+				"ecr:UploadLayerPart",
+				"ecr:InitiateLayerUpload",
+				"ecr:BatchCheckLayerAvailability",
+				"ecr:PutImage"
+				"ecr:GetDownloadUrlForLayer", # 公式に足りないpull権限
+				"ecr:BatchGetImage", # 公式に足りないpull権限
+			],
+			"Resource": "*" # ここが気になる場合は、もっと厳密化すること
+		}
+	]
+}
+```
+
+
+## ユーザーのアクセスキーを取得
+
+先ほど作成したユーザーをユーザー一覧から選択して詳細画面に遷移
+
+セキュリティ認証情報を選択してアクセスキーを作成をクリック
+
+ユースケース: コマンドラインインターフェース(CLI)を選択
+
+次へを選択し、アクセスキーを作成
+
+**アクセスキーとシークレットアクセスキーはメモかcsvをダウンロードしておくこと(この画面から離れるとシークレットアクセスキーは見れなくなる)**
+
+
+## AWS CLIの設定
+
+[公式情報](https://docs.aws.amazon.com/ja_jp/cli/v1/userguide/cli-authentication-user.html#:~:text=configure%20%E3%81%AE%E4%BD%BF%E7%94%A8-,aws%20configure%20%E3%81%AE%E4%BD%BF%E7%94%A8,-%E4%B8%80%E8%88%AC%E7%9A%84%E3%81%AA)
+
+公式情報に則って進める
+
+ターミナルから下記コマンドを叩く
+
+```shell
+aws configure
+```
+
+下記のように質問されるので、アクセスキー、シークレットアクセスキー、デフォルトリージョン(ap-northeast-1)、デフォルトアウトプットフォーマット(json)とする
+
+AWS Access Key ID [None]: `<code class="replaceable">AKIAIOSFODNN7EXAMPLE</code>`
+AWS Secret Access Key [None]: `<code class="replaceable"><span>wJalrXUtnFEMI</span>/K<span>7</span>MDENG/bPxRfiCYEXAMPLEKEY</code>`
+Default region name [None]: `<code class="replaceable"><span>us</span>-west-<span>2</span></code>`
+Default output format [None]: `<code class="replaceable">json</code>`
+
+この設定はどこに保存されるのかというと、
+
+/Users/ユーザー名/.aws配下に保存される
+
+credebtialsにアクセスキーとシークレットアクセスキー
+
+congifにデフォルトリージョンとデフォルトアウトプットフォーマット
+
+が記録される
+
+ここまででpushの準備が整った形となる
+
+
+## ECRにimageのpush
+
+マネジメントコンソールからECRの作成したリポジトリを選択し、リポジトリ名を選択して、詳細画面に遷移する。
+
+右上にプッシュコマンドを表示ボタンが存在しているため、ここからOSを選択し表示されているコマンド通りにコンソールに打ち込んでいく
+
+認証(例なのでコピペしないでください)
+
+```shell
+aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin xxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com
+```
+
+dockerのimageのビルド(**platformを入れてビルドすること->ビルドOSに左右されないようにする**)
+
+```shell
+docker build --platform linux/x86_64 -t my-app-nginx
+```
+
+イメージのタグ付け
+
+```shell
+docker tag my-app-nginx:latest xxxxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/my-app-nginx:latest
+```
+
+イメージのpush
+
+```shell
+docker push xxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/my-app-nginx:latest
+```
+
+これでマネジメントコンソールに戻り、更新をするとimageがpushされていることが確認できる
+
+
+## BuleGreenデプロイを実施する
+
+ECSからタスク定義を更新して、デプロイを行なっていく。
+
+ECSのタスク定義からmy-app-nginxを選択して新しいリビジョンの作成をクリックする
+
+ここではコンテナ -1のイメージURIを変更する。
+
+現状ではAWSのnginxイメージが入っているが、ここを先ほどpushしたECRのURIに置き換える
+
+サイドメニューからリポジトリをクリック(別タブで開きます)
+
+そこからmy-app-nginxを選択->latestからイメージのURIをコピー
+
+ECSのタスク定義に戻って、コピペする
+
+作成をクリック
+
+リビジョン番号がインクリメントされたタスク定義が作成されていればOK
+
+
+クラスター->クラスター詳細(my-app-cluster)->サービス->サービス詳細(my-app_nginx-service)をクリックして右上のサービスを更新を選択する
+
+タスク定義のリビジョン: 先ほど作成したタスク定義の最新リビジョン番号を指定
+
+デプロイオプション(必須項目が勝手に表示される)
+
+アプリケーション名: CodeDeployで確認した名前を選択(1つしか出ないと思います)
+
+デプロイグループ名: アプリケーション名を入力すると自動反映
+
+デプロイ設定: アプリケーション名を入力すると自動反映
+
+更新をクリック
+
+下記画像のCodeDeployのデプロイが作成されました。のバーのIDがリンクになっているのでクリック(中身を見てみます)
+
+![CodeDeployバー](images/aws_bg_deploy_service_update.png)
+
+画面を遷移すると下記の画像の画面になる(数分待機後なのでstep3になっている)
+
+![CodeDeployステータス](images/aws_bg_deploy_code_deploy_status.png)
+
+ステップ3で止まっているのは、CodeDeploy設定で1時間トラフィックの切り替えを待機させているからである
+
+ここで、ECSのクラスター→サービス→タスクを確認すると2つのタスクが起動中なのがわかる
+
+それぞれのパブリックIPにアクセスするとnginxのデフォルト画面とHello Worldの画面がそれぞれに表示されているのがわかると思う。
+
+要は変更前(Blue)と変更後(Green)環境ができている状態となる。
+
+またロードバランサーからロードバランサーのDNSをコピーしてアクセスすると、80番ポートはnginxデフォルト画面、9000番ポートはHello World画面とこちらも2つアクセスできることがわかると思う。
+
+ここで、CodeDeployに戻り、トラフィックの再ルーディングを行う
+
+すると、ロードバランサーのDNSは80番がnginxのデフォルト画面からHelloWorldに切り替わり、トラフィックが変わったのがわかる。
+
+
+この時にはまだCodeDeployのデプロイを停止してロールバックを選択すればデプロイ前の状態に戻る
+
+理由としてはCodeDeployのステップが4で待機になっているはずである。これはBlue環境の破棄までの時間である。現状はまだ、Blue環境を破棄していないため、トラフィックを戻すだけで、ロールバックは簡単にできる状態なのである。
+
+ここからBlueの破棄を行うには、元のタスクセットの終了をクリックする。
+
+こうするとBlue環境は完全に破棄され、起動タスクも1つになるのがわかるはずである。
+
+さらにCodeDeployのステップも全て完了する。
+
+仮にBlue環境を破棄後に戻したい場合はサービスを編集してリビジョンを下げれば対応できるはずである
+
+## お掃除
+
+コストが無駄にかかってしまうので課金対象のお掃除を行う
+
+* ALBを削除(EC2からロードバランサーで作成したロードバランサーを選択して削除)
+* CloudFormationからサービス名が入ったものを選択して削除(多分、上にあると思います。CloudFormation(IaC)を内部的にAWSが勝手に使っているため、ここを削除すればECSの要素をあらかた削除できます。)
+* ECRリポジトリのイメージを削除する(イメージのサイズで課金されてしまうため)
+
+ここまで削除すれば課金はされないはずです。心配な方は、その他も全て消してください。
+
+これで以上になります！
+
+お疲れ様でした！！！
