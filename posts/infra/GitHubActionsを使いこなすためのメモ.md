@@ -6,7 +6,7 @@ tags:
   -  GitHubActions
   - CI/CD
 ---
-# GitHubActionsを少し上手に使ってみる
+# GitHubActionsを少し詳しく見る
 
 ワークフロー、イベント、ランナー、ジョブ、ステップ、アクションの関係を理解している知識を前提とする。
 
