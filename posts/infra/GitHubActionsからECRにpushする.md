@@ -1,11 +1,13 @@
----
 id: 141e7b35-c01a-2eda-41ef-aaf4af2fff72
 title: GitHubActionsからECSにデプロイを行う
 date: '2025-05-28'
 tags:
-  - GitHubActions
-  - CI/CD
+
+- GitHubActions
+- CI/CD
+
 ---
+
 # GitHubActionsからECSにデプロイを行う
 
 今回は簡単なGolangのアプリケーション(/にアクセスでHelloWorldが帰ってくるだけ)をGitHubActionsからデプロイしていく
@@ -184,7 +186,62 @@ jobs:
           docker image push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
 ```
 
+変更した部分について説明していくと
 
+```yml
+permissions: #　追記 OIDCで使用する権限をAction内で許可する
+  id-token: write
+  contents: read
+```
+
+id-token: writeはランナーが実行中のジョブの身元を証明するJWTをGitHub OIDCプロバイダーへ、くださいとリクエストする許可が必要になるため設定している。
+
+contens: readはGutHubActionsがリポジトリの内容に読み取りアクセスできるようにする設定である。
+
+```yml
+env: # 追記
+  AWS_REGION: ap-northeadt-1
+  ECR_REPOSITORY: xxxrepository
+  ECS_SERVICE: xxxservice
+  ECS_CLUSTER: xxxcluster
+  ECS_TASK_DEFINITION: xxxx # まだ使用しない
+```
+
+上記については、AWSへのアクセスやアクションで必要になる情報である。前述で説明を記載しているため、省略する。
+
+```yml
+　　　- name: Image Build # イメージをビルドして仮のタグを設置・・・1
+        run: docker image build -t temp_api_image:latest .
+   
+      - name: Configure AWS credentials # OIDCを利用して認証情報を取得する・・・2
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # 秘匿情報のためシークレットを活用・・・2-1
+  
+      - name: Login to Amazon ECR
+        id: login-ecr # この後のステップでログイン時に取得したレジストリ情報を得るためにidを付与・・・3
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push the image to Amazon ECR # イメージのタグを書き換えとECRのイメージpushコマンドを実行してくれるアクション・・・4
+        env:
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker image tag temp_api_image:latest $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+          docker image push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+```
+
+ここからが本題となる。
+
+1. ECRへpushするためのイメージを作成している。タグは一時的につけている。ECRにログインした際に得られるレジストリ名を使用したタグ名にpush前に変更するため、一旦、temp_api_imageとしている
+2. OIDCトークンを取得してAWSに渡す。AWSから返却されたアクセスキーをランナーの.aws/直下にアクセストークン情報を保存する
+   1. role-to-assumeはAWS側で作成したロールのARNを使用するため、シークレット情報としてGitHubに登録する。なお、シークレットとして登録した場合は、yml定義にも出てこないし、実行中のログにもマスクされるため安全に定義することができる。
+3. ECRにログインを行っている。id付与は4で得たログイン情報をGITHUB_OUTPUT環境変数へ登録して、ステップ間のデータを共有するために付与している。[GITHUB_OUTPUT環境変数](https://pengineer.jp/blog/d069f6d5-7be8-04e0-d7f8-857189480282#:~:text=%E3%81%A7%E5%85%B1%E6%9C%89%E3%81%99%E3%82%8B-,GITHUB_OUTPUT%E7%92%B0%E5%A2%83%E5%A4%89%E6%95%B0%E7%B5%8C%E7%94%B1%E3%81%A7%E5%85%B1%E6%9C%89%E3%81%99%E3%82%8B,-GitHubActions%E3%81%8C%E7%AE%A1%E7%90%86)  [Actionsのソース](https://github.com/aws-actions/amazon-ecr-login/blob/main/index.js)
+4. イメージタグを一時的なものから、レジストリ名+リポジトリ名+一意な値(コミットハッシュ)につけ直して、pushを行っている
+
+実際の中身はそこまで難しいことを行なっていない。usesでアクションを使用すると裏で環境変数に値をセットしたりなど隠蔽してくれている部分もあるため、ドキュメントか、ソースを観に行くのがいいと思う。
+
+次はOICDの説明を挟んだ後に、一旦、AWS側でrole-to-assume(GitHubシークレット)に登録するための、ロールを作成し、ARNを取得していく。
 
 ## OICD(OpenIDConnect)とは？
 
@@ -271,10 +328,124 @@ id_tokenはJWT形式のトークンである。
 
 めちゃくちゃ要約すると
 
-GitHub: AWSのリソースにアクセスしたいなぁ。せや、自分を証明するトークンを作って送りつけたろ。秘密鍵で暗号化してAWS側で公開鍵で複合すればワイやと証明できるしな！
+GitHub: AWSのリソースにアクセスしたいなぁ。せや、自分を証明する情報を作って送りつけたろ。JWTでええか。秘密鍵で暗号化してAWS側で公開鍵で復号すればワイやと証明できるしな！
 
-AWS: GitHubからなんかトークンきたな。。。本物か確認するわ。。。。。。本物やな。アクセストークンやるよ。ただし怖いから短い有効時間のアクセストークンな！
+AWS: GitHubからなんかきたな。。。JWT?本物か確認するわ。。。。。。本物やな。アクセストークンやるよ。ただし怖いから短い有効時間のアクセストークンな！
 
 GitHub: ナイスAWS!! これでAWSリソースにアクセスできるわ！
 
 て感じです。
+
+## AWSでロールを作成していく
+
+特定のリポジトリ、特定のブランチからの要求に対して、アクセストークンを付与するためのロールを作成していく。
+
+### AWSにGitHubのIDプロバイダーを登録
+
+AWSのIAMに移動してサイドメニューからIDプロバイダを選択する。
+
+![AWS IAM IDプロバイダーメニュー](images/github_actions_aws_id_provider_menu.png)
+
+プロバイダーの作成をクリックし、新規作成画面に入る
+
+プロバイダのタイプ: OpenID Connectを選択
+
+プロバイダのURL: token.actions.githubusercontent.com
+
+対象者: sts.amazonaws.com
+
+参照: [公式にプロバイダのURLが記載してある](https://docs.github.com/ja/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services#:~:text=%E3%81%94%E8%A6%A7%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84%E3%80%82-,AWS%20%E3%81%B8%E3%81%AE%20ID%20%E3%83%97%E3%83%AD%E3%83%90%E3%82%A4%E3%83%80%E3%83%BC%E3%81%AE%E8%BF%BD%E5%8A%A0,-GitHub%20OIDC%20%E3%83%97%E3%83%AD%E3%83%90%E3%82%A4%E3%83%80%E3%83%BC)
+
+これでIDプロバイダー登録は完了である。
+
+もしかしたらサムプリントを取得ボタンが表示されているかもしれないが、それは取得してしまって構わない。
+
+### ロールを作成
+
+サイドメニューからロールを選択し、ロールの新規作成をクリック
+
+信頼されたエンティティタイプ: ウェブアイデンティティを選択
+
+アイデンティティプロバイダー: token.actions.githubusercontent.comが選択できるはず
+
+Audience: sts.amazonaws.comが選択できるはず
+
+GitHub組織: 個人である場合はGitHubのユーザー名を入力(GitHubリポジトリの右側にあるユーザー名)
+
+GitHubリポジトリ: GitHubリポジトリ名
+
+GitHubブランチ: ブランチ名(オプション)
+
+次へを選択する。
+
+許可ポリシーは一旦、何もせず、次へ
+
+ロールの詳細
+
+ロール名: GitHubActionsブランチ名(ここは明示的な命名がいいと思います)
+
+説明: 説明を記載(日本語不可)
+
+ロールを作成で完了。
+
+作成したロールにポリシーをアタッチしていく。
+
+ロールの詳細に入り、インラインポリシーをアタッチを選択
+
+下記を貼り付ける
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Statement1",
+			"Effect": "Allow",
+			"Action": [
+				"ecr:BatchGetImage",
+				"ecr:GetDownloadUrlForLayer",
+				"ecr:BatchCheckLayerAvailability",
+				"ecr:PutImage",
+				"ecr:InitiateLayerUpload",
+				"ecr:UploadLayerPart",
+				"ecr:CompleteLayerUpload",
+				"ecr:GetAuthorizationToken",
+				"ecs:UpdateService",
+				"ecs:RegisterTaskDefinition",
+				"ecs:ListTaskDefinitions",
+				"ecs:DescribeServices"
+			],
+			"Resource": "*"
+		}
+	]
+}
+```
+
+ポリシー名: UpdateECSTask(任意でいいです)
+
+ポリシーの作成をクリック
+
+ポリシーのアタッチができたら、作成したロールの詳細画面にARNが表示されているため、これをGitHubのシークレットに登録していく。
+
+## GitHubActions　シークレットの登録
+
+GitHubのリポジトリ画面に戻って、Settings->Secrets and Variablesを選択
+
+![GitHub Secrets and Variables](images/github_action_secret.png)
+
+New Repository Secretを選択する
+
+Name: AWS_ROLE_TO_ASSUME(Actionsに記載したsecrets.AWS_ROLE_TO_ASSUMEがこれ)
+
+Secret: AWS ロールのARNを貼り付け
+
+Add Secretをクリックで完了。
+
+これでAWS<->GitHub間の設定は完了となった。
+
+AWSにECRが作成してある場合はActions経由でpushできる状態になっているはずである。
+
+## ECSにデプロイを行う
+
+ざっくりイメージを記載すると
+ECSのタスク定義を書き換え→タスク定義を更新→リビジョンが上がりECSによってFargateにデプロイされる
