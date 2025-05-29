@@ -1,3 +1,4 @@
+---
 id: 141e7b35-c01a-2eda-41ef-aaf4af2fff72
 title: GitHubActionsからECSにデプロイを行う
 date: '2025-05-28'
@@ -5,7 +6,7 @@ tags:
 
 - GitHubActions
 - CI/CD
-
+- ECS
 ---
 
 # GitHubActionsからECSにデプロイを行う
@@ -16,12 +17,15 @@ tags:
 
 下記の構成でCIを作成していく
 
-今回はGitHubActionsがメインのため、その他の説明は省略する
+今回はGitHubActionsがメインのため、その他の説明は省略する(タスク定義は作成しておいてください。appspec.ymlは記事内で作成します)
 
 [ソース](https://github.com/gon-papa/cicd_practice)
 
 ```
 .
+├──.aws
+│   ├── task-def-api.yml
+│   └── appspec.yml
 ├── app
 │   ├── go.mod
 │   ├── go.sum
@@ -36,7 +40,10 @@ tags:
 ├── tmp
 │   ├── build-errors.log
 │   └── main             # Airなどでビルドされた実行ファイル
+また、AWS上にCodeDeployを用いた環境を用意しておくこと(コンテナ名など適宜、読み替えてください)
 ```
+
+[BuleGreenデプロイをハンズオンで作成してみる](https://pengineer.jp/blog/d069f6d5-7be8-04e0-d7f8-0ab717449733)
 
 ## テストを回してビルドまでを行う
 
@@ -52,6 +59,7 @@ name: API Deploy Pipeline
 on:
   push:
     paths:
+      - .github/workflows/**
       - 'app/**' # app配下が変更された時のみ動くように設定
 
 concurrency:
@@ -122,6 +130,7 @@ name: API Deploy Pipeline
 on:
   push:
     paths:
+      - .github/workflows/**
       - 'app/**' # app配下が変更された時のみ動くように設定
 
 concurrency:
@@ -166,7 +175,7 @@ jobs:
 
       # =======ここから下を追記========
       - name: Image Build # イメージをビルドして仮のタグを設置
-        run: docker image build -t temp_api_image:latest .
+        run: docker image build -t temp_api_image:latest ../.
    
       - name: Configure AWS credentials # OIDCを利用するために認証情報を取得する
         uses: aws-actions/configure-aws-credentials@v4
@@ -211,7 +220,7 @@ env: # 追記
 
 ```yml
 　　　- name: Image Build # イメージをビルドして仮のタグを設置・・・1
-        run: docker image build -t temp_api_image:latest .
+        run: docker image build -t temp_api_image:latest ../.
    
       - name: Configure AWS credentials # OIDCを利用して認証情報を取得する・・・2
         uses: aws-actions/configure-aws-credentials@v4
@@ -233,7 +242,7 @@ env: # 追記
 
 ここからが本題となる。
 
-1. ECRへpushするためのイメージを作成している。タグは一時的につけている。ECRにログインした際に得られるレジストリ名を使用したタグ名にpush前に変更するため、一旦、temp_api_imageとしている
+1. ECRへpushするためのイメージを作成している。タグは一時的につけている。ECRにログインした際に得られるレジストリ名を使用したタグ名にpush前に変更するため、一旦、temp_api_imageとしている。ビルドコンテキストはappディレクトリの外にDockerfileがあるため、そこに合わせること
 2. OIDCトークンを取得してAWSに渡す。AWSから返却されたアクセスキーをランナーの.aws/直下にアクセストークン情報を保存する
    1. role-to-assumeはAWS側で作成したロールのARNを使用するため、シークレット情報としてGitHubに登録する。なお、シークレットとして登録した場合は、yml定義にも出てこないし、実行中のログにもマスクされるため安全に定義することができる。
 3. ECRにログインを行っている。id付与は4で得たログイン情報をGITHUB_OUTPUT環境変数へ登録して、ステップ間のデータを共有するために付与している。[GITHUB_OUTPUT環境変数](https://pengineer.jp/blog/d069f6d5-7be8-04e0-d7f8-857189480282#:~:text=%E3%81%A7%E5%85%B1%E6%9C%89%E3%81%99%E3%82%8B-,GITHUB_OUTPUT%E7%92%B0%E5%A2%83%E5%A4%89%E6%95%B0%E7%B5%8C%E7%94%B1%E3%81%A7%E5%85%B1%E6%9C%89%E3%81%99%E3%82%8B,-GitHubActions%E3%81%8C%E7%AE%A1%E7%90%86)  [Actionsのソース](https://github.com/aws-actions/amazon-ecr-login/blob/main/index.js)
@@ -448,4 +457,298 @@ AWSにECRが作成してある場合はActions経由でpushできる状態にな
 ## ECSにデプロイを行う
 
 ざっくりイメージを記載すると
-ECSのタスク定義を書き換え→タスク定義を更新→リビジョンが上がりECSによってFargateにデプロイされる
+ECSのタスク定義を書き換え→タスク定義を更新→リビジョンが上がりCodeDeployによってFargateにデプロイされる
+
+その前に権限周りを設定する
+
+### IAMからPassRoleとCodeDeployの設定を追加する
+
+以前、作成したロールを再度、IAM->ロールから選択してポリシーのアタッチを行っていく。
+
+(前述を参考にしていればGitHubActionsブランチ名で命名をしているのではないかと思う。->ロールを作成を参照してください)
+
+CodeDeployの権限設定とタスク定義に記載されたexecutionRoleArnに記載されているロール権限をGitHubActionsブランチ名へ付与していく。これにPassRole権限が必要になる。
+
+executionRoleArnには恐らくECRのpushやpullなどの権限が与えられているのではないかと思う。
+
+```json
+ {
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Statement1",
+			"Effect": "Allow",
+			"Action": [
+				"ecr:BatchGetImage",
+				"ecr:GetDownloadUrlForLayer",
+				"ecr:BatchCheckLayerAvailability",
+				"ecr:PutImage",
+				"ecr:InitiateLayerUpload",
+				"ecr:UploadLayerPart",
+				"ecr:CompleteLayerUpload",
+				"ecr:GetAuthorizationToken",
+				"ecs:UpdateService",
+				"ecs:RegisterTaskDefinition",
+				"ecs:ListTaskDefinitions",
+				"ecs:DescribeServices",
+                                "codedeploy:GetDeploymentGroup", # 追加
+                                "codedeploy:CreateDeployment",　# 追加
+                                "codedeploy:GetApplication",　# 追加
+                                "codedeploy:RegisterApplicationRevision",　# 追加
+                                "codedeploy:GetDeployment",　# 追加
+                                "codedeploy:GetDeploymentConfig"　# 追加
+			],
+			"Resource": "*"
+		},
+                # 追加 筆者の環境ではECSに付与された実行ロールはecsTaskExecutionRoleであった。
+                {
+                         "Sid": "VisualEditor1",
+                         "Effect": "Allow",
+                         "Action": "iam:PassRole",
+                         "Resource": "arn:aws:iam::xxxxxxxxx:role/ecsTaskExecutionRole"
+                 }
+	]
+
+```
+
+次にCodeDeployで使用するappspec.ymlを作成する。
+
+### appspec.ymlの作成
+
+CodeDeployによるデプロイ処理を制御するためのファイルである
+
+```yml
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: "" # ここはActionsが勝手に入れるので空でOK
+        LoadBalancerInfo:
+          ContainerName: "my-api" # タスクのコンテナ名
+          ContainerPort: "80" # タスクのコンテナポート
+        PlatformVersion: "LATEST"
+```
+
+このファイルを作成し、.aws/配下に保存する
+
+これで準備は完了である。
+
+## Actions最終形
+
+最終的にはactionsの定義は下記のようになった。
+
+```yml
+name: API Deploy Pipeline
+on:
+  push:
+    paths:
+      - .github/workflows/**
+      - 'app/**' # app配下が変更された時のみ動くように設定
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }} # 同じワークフローと同じブランチが並列で実行される場合
+  cancel-in-progress: true
+
+permissions: # OIDCで使用する権限をAction内で許可する
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+  ECR_REPOSITORY: my-app
+  ECS_SERVICE: my-app-api-service-2j1xugg0
+  ECS_CLUSTER: my-app-cluster
+  ECS_TASK_DEFINITION: .aws/task-def-api.json
+
+jobs:
+  build-and-test:
+    defaults:
+      run:
+        working-directory: app # checkout後にPjのルートに対して相対パスを指定
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Out Code # コードの取得
+        uses: actions/checkout@v4
+
+      - name: SetUp Go WithCache # Golangのセットアップ(ランナーのGoはバージョンが合わないため基本使わない)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true # デフォルトでtrueだが明示的に設定
+
+      - name: Download Dependencies
+        run: go mod tidy
+
+      - name: Build
+        run: go build ./...
+
+      - name: Run tests
+        run: go test ./... -v
+
+      - name: Image Build # イメージをビルドして仮のタグを設置
+        run: docker image build -t temp_api_image:latest ../.
+   
+      - name: Configure AWS credentials # OIDCを利用して認証情報を取得する
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # 秘匿情報のためシークレットを活用
+      
+      - name: Login to Amazon ECR
+        id: login-ecr # この後のステップでログイン時に取得したレジストリ情報を得るためにidを付与
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push the image to Amazon ECR # イメージのタグを書き換えとECRのイメージpushコマンドを実行してくれるアクション
+        env:
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker image tag temp_api_image:latest $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+          docker image push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+          echo $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} > api-image-uri.txt
+
+      - name: Upload the image uri file as an artifact # artifactという保存領域にデータを保存し、job間のデータの受け渡しを行う
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-image-uri
+          path: app/api-image-uri.txt # usesではworking-directoryが効かないため、PJルートから指定する必要がある
+  
+  deploy:
+    defaults:
+      run:
+        working-directory: app # checkout後にPjのルートに対して相対パスを指定
+
+    runs-on: ubuntu-latest
+    needs: [build-and-test] # ここに記載されているjobが終わったら開始
+
+    steps:
+      - name: Check Out Code # コードの取得
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials # OIDCを利用して認証情報を取得する
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # 秘匿情報のためシークレットを活用
+
+      - name: Download the artifact # artifactという保存領域からデータを取得。job間のデータの受け渡しを行う
+        uses: actions/download-artifact@v4
+        with:
+          name: api-image-uri
+          path: app/artifacts # artifactsディレクトリに保存する
+
+      - name: Define the image URI # imageのURIをGITHUB環境変数に登録
+        run: |
+          echo "API_IMAGE_URI=$(cat artifacts/api-image-uri.txt)" >> $GITHUB_ENV
+
+      - name: Fill in the new image URI in the amazon ECS task definition # タスク定義ファイルに、新しく作成したイメージの URI を反映させる
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: my-api
+          image: ${{ env.API_IMAGE_URI }}
+
+      - name: Deploy ECS task # デプロイ(appspec.ymlのTaskDefinitionはここで勝手に反映される)
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          codedeploy-application: my-app-code-deploy
+          codedeploy-deployment-group: my-code-deploy-group
+          codedeploy-appspec: .aws/appspec.yml
+
+```
+
+これで一通り、ビルドからデプロイまで完了するはずである。
+
+追加内容を補足していく。
+
+```yml
+- name: Push the image to Amazon ECR # イメージのタグを書き換えとECRのイメージpushコマンドを実行してくれるアクション
+        env:
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker image tag temp_api_image:latest $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+          docker image push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+　　　　　　# ここから下追加===============
+          echo $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} > api-image-uri.txt
+
+      - name: Upload the image uri file as an artifact # artifactという保存領域にデータを保存し、job間のデータの受け渡しを行う
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-image-uri
+          path: app/api-image-uri.txt # usesではworking-directoryが効かないため、PJルートから指定する必要がある
+```
+
+Push the image to Amazon ECRでイメージタグの書き換えとイメージのpushを行っており、レジストリ名(レジストリURI)/リポジトリ名:コミットハッシュでイメージURIとなる。これをartifactという記憶領域に保存し、jobを跨いだデータの共有を行う準備をしている。(job同士はマシンが違うため、普通はデータの共有ができない)
+
+nameで取り出し名を指定し、pathで記憶したい内容へのパスを取得する。->app/api-image-uri.txtの中身を取得している。(要はイメージURI)
+
+
+
+deploy側はCheckOutとAWS認証は下記に記載されていますが飛ばします。
+
+```yml
+steps:
+      - name: Check Out Code # コードの取得
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials # OIDCを利用して認証情報を取得する
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # 秘匿情報のためシークレットを活用
+
+      - name: Download the artifact # artifactという保存領域からデータを取得。job間のデータの受け渡しを行う
+        uses: actions/download-artifact@v4
+        with:
+          name: api-image-uri
+          path: app/artifacts # artifactsディレクトリに保存する
+```
+
+重要なのは先ほどbuild-and-test jobでartifactに保存したデータを取得しているところである。
+
+取得時もnameで取り出し名を指定して、appディレクトリの中にartifactsというディレクトリを作成し保存している。
+
+この後は一気にまとめていく
+
+```yml
+- name: Define the image URI # imageのURIをGITHUB環境変数に登録
+        run: |
+          echo "API_IMAGE_URI=$(cat artifacts/api-image-uri.txt)" >> $GITHUB_ENV
+
+      - name: Fill in the new image URI in the amazon ECS task definition # タスク定義ファイルに、新しく作成したイメージの URI を反映させる
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: my-api
+          image: ${{ env.API_IMAGE_URI }}
+
+      - name: Deploy ECS task # デプロイ(appspec.ymlのTaskDefinitionはここで勝手に反映される)
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          codedeploy-application: my-app-code-deploy
+          codedeploy-deployment-group: my-code-deploy-group
+          codedeploy-appspec: .aws/appspec.yml
+```
+
+ここでは、Define the image URIで、artifactで得たイメージURIをGITHUB環境変数へ保存している。これはstepがそれぞれ独立したプロセスで実行されるため、step感のデータ共有のためである。
+
+その後に、タスク定義にURIを指定して(勝手にactionが置き換えてくれる)、デプロイを行う。
+
+デプロイでは、タスク定義を更新してCodeDeployを実行させている。
+
+これを回せば、CI/CDを一気に完了できる。
+
+
+## 終わりに
+
+GitHubActionsの構成をメインの話にしたかったため、インフラ構成や細かい部分をかなり端折っています。
+
+雰囲気を感じ取るような記事になってしまいましたが、誰かの助けになれば幸いです！
