@@ -129,3 +129,161 @@ resource "aws_instance" "hello-world" {
 | `object`   | `{ name = string, port = number }` | 特定の構造をもつマップ型、フィールド名・型を定義         | 変数や出力の型指定に使用               |
 | `set`      | `toSet(["a", "b", "c"])`           | 重複のない値の集合。順序は保証されない                   | `allowed_ips = toSet(["1.1.1.1"])`     |
 | `null`     | `null`                             | 明示的に値なしとする                                     | `description = null`                   |
+
+## localsとvariablesブロック
+
+HCLで利用可能な変数である
+
+
+| 種類      | 説明                                                                               |
+| ----------- | ------------------------------------------------------------------------------------ |
+| locals    | ローカル変数であり、プライベートな変数で外部から変更できない                       |
+| variables | 外部から変更可能な変数であり、コマンドラインのオプションやファイル指定で上書き可能 |
+
+### locals定義方法
+
+localsブロックで宣言を行い、`${local.<NAME>}`で参照できる(外部から変更は不可)
+
+```tf
+locals {
+  env = "dev"
+}
+
+<block_type> "<label_1>" "<label_2>" {
+  tags {
+    env = "${local.env}"
+  }
+}
+```
+
+
+### variables定義方法
+
+variableブロックで宣言を行い、`${var.<NAME>}`で参照できる(外部からの変更は可能)
+
+宣言にはラベルを必要とし、ラベルには変数名を用いる
+
+内部では型(値の型を参照してください)とデフォルト値を設定可能
+
+```tf
+variables "env" {
+  type = string
+  default = "dev"
+}
+
+<block_type> "<label_1>" "<label_2>" {
+  tags {
+    env = "${var.env}"
+  }
+}
+```
+
+### 変数の上書き方法
+
+1. 環境変数を使って上書きする
+2. 変数ファイルを使って上書きする
+3. コマンド引数を使って上書きする
+
+この3種類の変更方法がある
+
+上書き順は環境変数<変数ファイル<コマンド引数(同種の値であれば後勝ち)という形で右に行くほど、優先される
+
+### 使い分けは？
+
+環境変数
+
+・実行ログに残らないため、鍵情報や環境依存情報などを設定する際に使用する。(tfstateに残ってしまう可能性はあるため注意)
+
+変数ファイル
+
+・git管理できるため、記録に残せる。プロビジョンとデータを切り離して管理することで変更しやすいソース管理ができる
+
+コマンド引数
+
+・実行ログに残るため、テストやデバッグで一時的に変更したい場合に利用
+
+#### 環境変数を使用した場合
+
+```tf
+variables "hoge" {
+  type = string
+  default = "None"
+}
+```
+
+環境変数を設定し実行=>この際に変数が環境変数によって上書きされる。`TF_VAR_変数名=値`で上書き可能
+
+```tf
+export TF_VAR_hoge="hoge_hoge"
+
+terraform apply
+```
+
+#### 変数ファイルを使用した場合
+
+```tf
+variables "hoge" {
+  type = string
+  default = "None"
+}
+
+```
+
+変数ファイルを用意する
+
+terraform.tfvars
+
+tfvars拡張子のファイルを用紙する
+
+```tf
+hoge = "hoge_hoge"
+```
+
+コマンド実行
+
+```bash
+terrafrom apply
+```
+
+#### コマンド引数を使用した場合
+
+コマンドに`var`オプションを指定して実行する
+
+```bash
+terraform apply -var hoge="hoge_hoge"
+```
+
+
+## Terraformブロック
+
+Terraformの設定に関わるブロックである
+
+Terraformの構成は大きく分けて、
+
+* Terraform本体機能
+* プロバイダー(AWSやAzure,GCPなどに対応した機能)
+
+に分かれる。
+
+これらは個別にバージョンを持っており、それぞれのバージョン管理や制限が必要になる
+
+主にTerraformブロックではバージョン管理を主として記載することとなる
+
+Terraformのバージョン固定 => required_version
+
+プロバイダのバージョン固定  => required_providers
+
+を用いる
+
+```tf
+terraform {
+    required_version = "x.x.x" # terraform のバージョンを設定 
+  
+    required_providers {
+        aws = {
+        source ="hashicorp/aws" # プロバイダー設定
+        version = "x.x.x" # バージョン設定
+        }
+    }
+}
+```

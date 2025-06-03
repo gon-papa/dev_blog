@@ -1,13 +1,13 @@
 ---
 id: d069f6d5-7be8-04e0-d7f8-0ab717449739
-title: Terraformの初期設定
+title: TerraformでEC2をデプロイしてみた
 date: '2025-06-03'
 tags:
   - AWS
   - IaC
   - terraform
 ---
-# Terraformの初期設定
+# TerraformでEC2をデプロイしてみた(本当にEC2だけ)
 
 Terraformを利用するにあたり、設定しなければならないものが存在する。
 
