@@ -156,7 +156,6 @@ locals {
 }
 ```
 
-
 ### variables定義方法
 
 variableブロックで宣言を行い、`${var.<NAME>}`で参照できる(外部からの変更は可能)
@@ -253,7 +252,6 @@ terrafrom apply
 terraform apply -var hoge="hoge_hoge"
 ```
 
-
 ## Terraformブロック
 
 Terraformの設定に関わるブロックである
@@ -287,3 +285,70 @@ terraform {
     }
 }
 ```
+
+## プロバイダーブロック
+
+プロバイダを使用する際に、リージョンや認証情報の設定などを行う
+
+```tf
+provider "aws" {
+    region ="ap-northeast-1"
+    profile = "admin" # AWSならCLIに設定したプロファイル名を指定できる
+}
+```
+
+## データブロック
+
+Terraformで管理対象外となっているリソースの参照が可能
+
+リソースによって記載方法が異なるので注意
+
+outputブロックで設定してあるリソースの参照も可能
+
+[もっと詳しめな記事](https://dexall.co.jp/articles/?p=2301#i-0)
+
+```tf
+data {}
+```
+
+## Outputブロック
+
+作成したリソースの情報を外部から参照できるようにするためのブロック
+
+```tf
+resource "aws_instance" "hello-world" {
+  ami = "ami-0c1638aa346a43fe8"
+  instance_type = "t2.micro"
+}
+
+outpur "ec2_instance_id" { # 呼び出し名=>ec2_instance_id
+  value = aws_instance.hello_world.id # 出力する値
+}
+```
+
+## リソース間の参照
+
+HCLでリソースを参照するための記述
+
+```tf
+<BLOCK_TYPE>.<LABEL_1>.<LABEL_2>
+
+# ブロックタイプは省略可能なので、通常は下記で呼び出しすることが多そう
+<LABEL_1>.<LABEL_2>
+```
+
+```tf
+# 例えば、vpcのリソースを呼び出したいときは
+resource "aws_vpc" "vpc" {
+ ...
+}
+
+# 必要なブロック内で取得可能
+aws_vpc.vpc.id
+```
+
+## 終わりに
+
+すごくざっくりと記載しました。
+
+今後はより実践向けの記事を書きたいなと思います。
