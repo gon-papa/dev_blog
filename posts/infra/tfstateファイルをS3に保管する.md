@@ -1,7 +1,7 @@
 ---
 id: 6cd82051-f259-3ede-7688-c40c81a53cb6
 title: tfStateファイルをS3に保管する
-date: 2025-06-12
+date: '2025-06-12'
 tags:
   - IaC
   - terraform
@@ -20,3 +20,6 @@ GitHubなどのリモートリポジトリ管理も選択肢に入るかもし�
 
 ※tfstateファイルの管理が多い、もしくはS3などを使用したくない場合はTerraform Cloudを使用するのが楽かもしれない。
 [Terraform Cloud](https://dev.classmethod.jp/articles/terraform_tfstate_management_tfc/)
+
+## マネジメントコンソールからS3を作成していく
+AWS マネジメントコンソールにログインして、S3を検索しバケットの新規作成を行う
