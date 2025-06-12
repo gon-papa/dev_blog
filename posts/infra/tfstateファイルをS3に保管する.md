@@ -1,0 +1,22 @@
+---
+id: 6cd82051-f259-3ede-7688-c40c81a53cb6
+title: tfStateファイルをS3に保管する
+date: 2025-06-12
+tags:
+  - IaC
+  - terraform
+---
+# tfstateファイルをS3に保管する
+tfstateファイルは実際の環境がterraformの管理下にあるのかを記述している情報が記載されている。個人で運用する分には問題ないが、複数人で運用する際はtfstateファイルのズレが発生する。terraform applyでコードを環境に反映した際にtfstateファイルも更新されるからだ。
+
+そうなると各開発者のローカル環境で統一されたtfstateファイルを運用することは不可能であり、もし運用したとしたら、おそらく環境が壊れる。
+
+GitHubなどのリモートリポジトリ管理も選択肢に入るかもしれないが、これもコンフリクトや機密情報を含む可能性があるため、非推奨の管理となる。
+
+と言ったところで選択肢に入るのがS3での管理である。
+ただしここにも注意点があり、Terraform管理対象環境でのS3管理は避けた方が良い。Terraform自身によって環境を変化させてしまう危険性があるからだ。
+またS3のみを使用しても今度は同時更新のリスクも出てきてしまう。それらを完全回避するにはDynamoDBを使用した排他制御が必要になる。
+今回は練習のためTerraform管理環境でS3+DynamoDBを使用した管理を記載していく。
+
+※tfstateファイルの管理が多い、もしくはS3などを使用したくない場合はTerraform Cloudを使用するのが楽かもしれない。
+[Terraform Cloud](https://dev.classmethod.jp/articles/terraform_tfstate_management_tfc/)
