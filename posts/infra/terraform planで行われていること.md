@@ -1,7 +1,7 @@
 ---
 id: d069f6d5-7be8-04e0-d7f8-857189480283
 title: terraform planの裏で行われていること
-date: 2025-06-23
+date: '2025-06-23'
 tags:
   - terraform
   - IaC
