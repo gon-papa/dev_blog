@@ -1,7 +1,7 @@
 ---
 id: 6cd82051-f259-3ede-7688-c40c81a53cb3
 title: Terraformをちょっと本格的に触ってみる(ECSデプロイ)
-date: 2025-06-25
+date: '2025-06-25'
 tags:
   - AWS
   - ECS
