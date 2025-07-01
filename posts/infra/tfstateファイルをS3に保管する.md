@@ -230,7 +230,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate_storage" 
 それは同時に変更を行った場合である。同時変更が記録され、tfstateファイルの中身が壊れてしまう恐れがある。
 これを回避するためにDynamoDBを使用し、terraform plan / apply 開始時に DynamoDB からロック取得できるようにする。
 
-## DynamoDBを作成する
+## DynamoDBを作成する(v1.10以前)->飛ばしてOK
 db.tfを作成する
 ```tf
 resource "aws_dynamodb_table" "tfstate-lock-db" {
@@ -287,6 +287,32 @@ terraform init
 terraform apply
 ```
 をすれば完了である。
+
+## DynamoDBを作成しなくても良くなった！(v1.10以降)
+v1.10以降はDynamoDBを用意しなくてもS3単体でロックファイルを作成して、競合を防ぐことができるようになった。
+```tf
+terraform {
+	required_version = "1.12.1"
+	required_providers {
+		aws = {
+			source = "hashicorp/aws"
+			version = "5.99.1"
+		}
+	}
+	# 設定を追記
+	backend "s3" {
+		bucket = "tfstate-storage-icpnvm"
+		key = "state/terraform.tfsstate"
+		region = "ap-northeast-1"
+		encrypt = true
+		kms_key_id = "alias/tsstate_storage_key_alias"
+		use_lockfile = true # これでOK! DynamoDBを用意しなくても大丈夫！
+	}
+}
+```
+
+use_lockfileをtureに設定するとS3内でterraform apply中はロックファイルが作成されて競合を防いでくれるようになったため、こちらを使用した方がいいです！
+
 
 CLIアカウントに適切なポリシーをアタッチしていない場合はエラーになるため、エラー内容に従ってポリシーをアタッチしていけば良い。
 筆者は

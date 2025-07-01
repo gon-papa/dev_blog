@@ -23,3 +23,9 @@ Terraformでちょっと本格的な構成でインフラを構成してみよ�
 tfStateファイルを管理することとする。
 
 では早速やっていく。
+
+基本作成ファイル
+- main.tf
+- variable.tf
+- outputs.tf
+は基本的に空でも作成を行う(Standard Modiule Structureに従う->本当はreadmeもおくべき)
